@@ -1,0 +1,32 @@
+[package]
+name = "rs-glfw3-gles2-test"
+version = "0.1.0"
+authors = ["Wael El Oraiby <wael.eloraiby@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rs-ctypes = "0.1.1"
+rs-glfw3 = "0.1.3"
+rs-gles2 = "0.1.1"
+libc = "0.2.72"
+
+[profile]
+[profile.release]
+# or "z"
+opt-level = "z"
+overflow-checks = false
+debug-assertions = false
+lto = true
+incremental = false
+panic = "abort"
+
+
+[profile.dev]
+#opt-level = "z"
+overflow-checks = false
+debug-assertions = false
+lto = true
+incremental = false
+panic = "abort"
