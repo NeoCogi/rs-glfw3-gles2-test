@@ -1,3 +1,31 @@
+Copyright 2020-Present (c) Raja Lehtihet & Wael El Oraiby
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+// may be used to endorse or promote products derived from this software without
+// specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+//
 #![no_std]
 #![no_main]
 #![allow(non_snake_case)]
@@ -36,6 +64,71 @@ pub unsafe fn freeArray<T>(ptr: *mut T, count: usize) {
         ::core::ptr::drop_in_place(&arr[i] as *const T as *mut T);
     }
     free(ptr);
+}
+
+#[repr(C)]
+pub struct Unique<T: ?Sized> {
+    ptr         : *mut T,
+    _marker     : ::core::marker::PhantomData<T>,
+}
+
+impl<T> Unique<T> {
+    pub fn new(ptr: *mut T) -> Self { Self { ptr : ptr, _marker: ::core::marker::PhantomData } }
+    pub fn getMutPtr(&mut self) -> *mut T { self.ptr }
+    pub fn getPtr(&self) -> *const T { self.ptr }
+}
+
+#[repr(C)]
+pub struct Box<T>{
+    uptr: Unique<T>
+}
+
+impl<T> Box<T> {
+    /// Allocates memory on the heap and then places `x` into it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let five = Box::new(5);
+    /// ```
+    #[inline(always)]
+    pub fn new(x: T) -> Box<T> {
+        unsafe {
+            let addr = alloc::<T>();
+            *addr = x;
+            Self { uptr: Unique::new(addr) }
+        }
+    }
+
+    pub fn asRef(&self) -> &T { unsafe { &(*self.uptr.getPtr()) } }
+    pub fn asMut(&mut self) -> &T { unsafe { &mut (*self.uptr.getMutPtr()) } }
+    pub fn intoRaw(self) -> *mut T {
+        let m = ::core::mem::ManuallyDrop::new(self);
+        m.uptr.ptr
+    }
+
+    pub fn fromRaw(raw: *mut T) -> Self {
+        Self { uptr: Unique::new(raw) }
+    }
+
+    pub fn unbox(self) -> T {
+        unsafe {
+            let ptr = self.uptr.ptr;
+            let v = self.intoRaw().read();
+            free(ptr);
+            v
+        }
+    }
+}
+
+impl<T> Drop for Box<T> {
+    fn drop(&mut self) {
+        unsafe {
+            let addr = self.uptr.getMutPtr();
+            ::core::ptr::drop_in_place(addr);
+            free(addr);
+        }
+    }
 }
 
 #[cfg(not(test))]
@@ -127,6 +220,66 @@ void main() {
     gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
 }\0";
 
+#[cfg(target_arch = "wasm32")]
+type EmArgCallbackFunc = extern "C" fn(*mut c_void);
+
+
+#[cfg(target_arch = "wasm32")]
+extern "C" {
+    fn emscripten_set_main_loop_arg(func: EmArgCallbackFunc, arg: *mut c_void, fps: c_int, simulate_infinite_loop: c_int);
+}
+
+pub struct State {
+    program : Option<GLuint>,
+    buff    : GLuint,
+}
+
+extern "C"
+fn mainLoop(win_: *mut c_void) {
+    unsafe {
+        let win = win_ as *mut GLFWwindow;
+        let state = glfwGetWindowUserPointer(win) as *mut State;
+
+        let mut width = 0;
+        let mut height = 0;
+        glfwGetWindowSize(win, &mut width, &mut height);
+        glViewport(0, 0, width, height);
+        glScissor(0, 0, width, height);
+        glClearColor(0.0, 0.0, 0.0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+        match (*state).program {
+            Some(p) => {
+
+                glUseProgram(p);
+                glBindBuffer(GL_ARRAY_BUFFER, (*state).buff);
+                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE as u8, 0, 0 as *const c_void);
+                glEnableVertexAttribArray(0);
+                glDrawArrays(GL_TRIANGLES, 0, 3);
+            },
+            None => ()
+        }
+
+        glfwSwapBuffers(win);
+        glfwPollEvents();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn runMainLoop(win: *mut GLFWwindow) {
+    unsafe { emscripten_set_main_loop_arg(mainLoop, win as *mut c_void, 0, 1) };
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn runMainLoop(win: *mut GLFWwindow) {
+    unsafe {
+        while glfwWindowShouldClose(win) == GLFW_FALSE as c_int && glfwGetKey(win, GLFW_KEY_ESCAPE as c_int) == 0 {
+            mainLoop(win as *mut c_void);
+        }
+    }
+}
+
+
 #[link(name="c")]
 #[no_mangle]
 pub extern "C"
@@ -150,36 +303,19 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
         glfwMakeContextCurrent(win);
 
         let program = loadProgram(&VERTEX_SHADER, &FRAGMENT_SHADER);
+        let mut buff = 0;
+        glGenBuffers(1, &mut buff);
+        let vertices : [f32; 9] =
+        [   0.0,    0.5,    0.0,
+            -0.5,   -0.5,   0.0,
+            0.5,    -0.5,   0.0 ];
+        glBindBuffer(GL_ARRAY_BUFFER, buff);
+        glBufferData(GL_ARRAY_BUFFER, 4 * 9 as GLsizeiptr, vertices.as_ptr() as *const rs_ctypes::c_void, GL_STATIC_DRAW);
 
-        loop {
-            let mut width = 0;
-            let mut height = 0;
-            glfwGetWindowSize(win, &mut width, &mut height);
-            glViewport(0, 0, width, height);
-            glScissor(0, 0, width, height);
-            glClearColor(0.0, 0.0, 0.0, 1.0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        let state = Box::new(State { program : program, buff : buff});
+        glfwSetWindowUserPointer(win, state.asRef() as *const State as *mut ::core::ffi::c_void);
+        runMainLoop(win);
 
-            if glfwGetKey(win, GLFW_KEY_ESCAPE as c_int) != 0 {
-                break;
-            }
-
-            match program {
-                Some(p) => {
-                    let vertices : [f32; 9]= [ 0.0, 0.5, 0.0,
-                                            -0.5, -0.5, 0.0,
-                                            0.5, 0.5, 0.0];
-                    glUseProgram(p);
-                    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE as u8, 0, vertices.as_ptr() as *const c_void);
-                    glEnableVertexAttribArray(0);
-                    glDrawArrays(GL_TRIANGLES, 0, 3);
-                },
-                None => ()
-            }
-
-            glfwSwapBuffers(win);
-            glfwPollEvents();
-        }
         glfwDestroyWindow(win);
         glfwTerminate();
     }
