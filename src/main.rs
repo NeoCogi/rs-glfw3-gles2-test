@@ -28,11 +28,15 @@
 //
 #![no_std]
 #![no_main]
-#![allow(non_snake_case)]
+
 use rs_ctypes::*;
 use rs_glfw3::bindings::*;
 use rs_gles2::bindings::*;
 use rs_mem::*;
+use rs_streams::*;
+
+mod objloader;
+use objloader::*;
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -40,7 +44,7 @@ fn alt_std_panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { libc::exit(1) }
 }
 
-fn loadShader(src: &str, ty: GLenum) -> Option<GLuint> {
+fn load_shader(src: &str, ty: GLenum) -> Option<GLuint> {
     unsafe {
         let shader = glCreateShader(ty);
         if shader == 0 {
@@ -53,13 +57,13 @@ fn loadShader(src: &str, ty: GLenum) -> Option<GLuint> {
         let mut compiled = 0;
         glGetShaderiv(shader, GL_COMPILE_STATUS, &mut compiled);
         if compiled == 0 {
-            let mut infoLen = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut infoLen);
-            if infoLen > 1 {
-                let sptr = allocArray::<u8>(infoLen as usize);
-                glGetShaderInfoLog(shader, infoLen as GLsizei, core::ptr::null_mut(), sptr as *mut GLchar);
+            let mut info_len = 0;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut info_len);
+            if info_len > 1 {
+                let sptr = alloc_array::<u8>(info_len as usize);
+                glGetShaderInfoLog(shader, info_len as GLsizei, core::ptr::null_mut(), sptr as *mut GLchar);
                 libc::puts(sptr as *const i8);
-                freeArray(sptr, infoLen as usize);
+                free_array(sptr, info_len as usize, info_len as usize);
             }
 
             glDeleteShader(shader);
@@ -69,45 +73,45 @@ fn loadShader(src: &str, ty: GLenum) -> Option<GLuint> {
     }
 }
 
-fn loadProgram(vs: &str, fs: &str) -> Option<GLuint> {
+fn load_program(vs: &str, fs: &str) -> Option<GLuint> {
     unsafe {
-        let programObject = glCreateProgram();
-        if programObject == 0 {
+        let program_object = glCreateProgram();
+        if program_object == 0 {
             return None
         }
 
-        let vertexShader = loadShader(vs, GL_VERTEX_SHADER);
-        let fragmentShader = loadShader(fs, GL_FRAGMENT_SHADER);
+        let vertex_shader    = load_shader(vs, GL_VERTEX_SHADER);
+        let fragment_shader  = load_shader(fs, GL_FRAGMENT_SHADER);
 
-        match (vertexShader, fragmentShader) {
+        match (vertex_shader, fragment_shader) {
             (None, None) => (),
             (None, Some(f)) => glDeleteShader(f),
             (Some(v), None) => glDeleteShader(v),
             (Some(v), Some(f)) => {
-                glAttachShader(programObject, v);
-                glAttachShader(programObject, f);
-                glBindAttribLocation(programObject, 0, "vPosition\0".as_ptr() as *const GLchar);
-                glLinkProgram(programObject);
+                glAttachShader(program_object, v);
+                glAttachShader(program_object, f);
+                glBindAttribLocation(program_object, 0, "vPosition\0".as_ptr() as *const GLchar);
+                glLinkProgram(program_object);
 
                 let mut linked = 0;
-                glGetProgramiv(programObject, GL_LINK_STATUS, &mut linked);
+                glGetProgramiv(program_object, GL_LINK_STATUS, &mut linked);
                 if linked == 0 {
-                    let mut infoLen = 0;
-                    glGetProgramiv(programObject, GL_INFO_LOG_LENGTH, &mut infoLen);
-                    if infoLen > 1 {
-                        let sptr = allocArray::<u8>(infoLen as usize);
-                        glGetProgramInfoLog(programObject, infoLen as GLsizei, core::ptr::null_mut(), sptr as *mut GLchar);
+                    let mut info_len = 0;
+                    glGetProgramiv(program_object, GL_INFO_LOG_LENGTH, &mut info_len);
+                    if info_len > 1 {
+                        let sptr = alloc_array::<u8>(info_len as usize);
+                        glGetProgramInfoLog(program_object, info_len as GLsizei, core::ptr::null_mut(), sptr as *mut GLchar);
                         libc::puts(sptr as *const i8);
-                        freeArray(sptr, infoLen as usize);
+                        free_array(sptr, info_len as usize, info_len as usize);
                     }
 
-                    glDeleteShader(programObject);
+                    glDeleteShader(program_object);
                     return None
                 }
             }
         }
 
-        Some(programObject)
+        Some(program_object)
     }
 }
 
@@ -138,7 +142,7 @@ pub struct State {
 }
 
 extern "C"
-fn mainLoop(win_: *mut c_void) {
+fn main_loop(win_: *mut c_void) {
     unsafe {
         let win = win_ as *mut GLFWwindow;
         let state = glfwGetWindowUserPointer(win) as *mut State;
@@ -169,15 +173,15 @@ fn mainLoop(win_: *mut c_void) {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn runMainLoop(win: *mut GLFWwindow) {
-    unsafe { emscripten_set_main_loop_arg(mainLoop, win as *mut c_void, 0, 1) };
+fn run_main_loop(win: *mut GLFWwindow) {
+    unsafe { emscripten_set_main_loop_arg(main_loop, win as *mut c_void, 0, 1) };
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn runMainLoop(win: *mut GLFWwindow) {
+fn run_main_loop(win: *mut GLFWwindow) {
     unsafe {
         while glfwWindowShouldClose(win) == GLFW_FALSE as c_int && glfwGetKey(win, GLFW_KEY_ESCAPE as c_int) == 0 {
-            mainLoop(win as *mut c_void);
+            main_loop(win as *mut c_void);
         }
     }
 }
@@ -205,7 +209,13 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
             core::ptr::null::<GLFWwindow>() as *mut GLFWwindow);
         glfwMakeContextCurrent(win);
 
-        let program = loadProgram(&VERTEX_SHADER, &FRAGMENT_SHADER);
+        let program = load_program(&VERTEX_SHADER, &FRAGMENT_SHADER);
+
+        let m = Mesh::read_obj("suzane.obj");
+        match m {
+            Ok(m) => println!("verts     : {}\nuvws      : {}\ntris      : {}\nquads     : {}", m.verts().len(), m.uvws().len(), m.tris().len(), m.quads().len()),
+            _ => ()
+        }
         let mut buff = 0;
         glGenBuffers(1, &mut buff);
         let vertices : [f32; 9] =
@@ -216,8 +226,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
         glBufferData(GL_ARRAY_BUFFER, 4 * 9 as GLsizeiptr, vertices.as_ptr() as *const rs_ctypes::c_void, GL_STATIC_DRAW);
 
         let state = Box::new(State { program : program, buff : buff});
-        glfwSetWindowUserPointer(win, state.asRef() as *const State as *mut ::core::ffi::c_void);
-        runMainLoop(win);
+        glfwSetWindowUserPointer(win, state.as_ref() as *const State as *mut ::core::ffi::c_void);
+        run_main_loop(win);
 
         glfwDestroyWindow(win);
         glfwTerminate();

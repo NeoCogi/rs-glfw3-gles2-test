@@ -11,8 +11,10 @@ rs-ctypes = "0.1.1"
 rs-glfw3 = "0.1.4"
 rs-gles2 = "0.1.2"
 rs-math3d = "0.9.0"
-rs-mem = "0.1.0"
-libc = "0.2.72"
+rs-mem = "0.2.2"
+rs-collections = "0.1.9"
+rs-streams = "0.1.6"
+libc = "0.2.74"
 
 [profile]
 [profile.release]
