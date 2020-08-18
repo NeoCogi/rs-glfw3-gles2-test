@@ -34,9 +34,15 @@ use rs_glfw3::bindings::*;
 use rs_gles2::bindings::*;
 use rs_mem::*;
 use rs_streams::*;
+use rs_collections::*;
+use rs_math3d::*;
+
 
 mod objloader;
+mod gles2_renderer;
+
 use objloader::*;
+use gles2_renderer::*;
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -44,76 +50,6 @@ fn alt_std_panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { libc::exit(1) }
 }
 
-fn load_shader(src: &str, ty: GLenum) -> Option<GLuint> {
-    unsafe {
-        let shader = glCreateShader(ty);
-        if shader == 0 {
-            return None
-        }
-
-        glShaderSource(shader, 1, &(src.as_ptr() as *const i8), core::ptr::null());
-        glCompileShader(shader);
-
-        let mut compiled = 0;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &mut compiled);
-        if compiled == 0 {
-            let mut info_len = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut info_len);
-            if info_len > 1 {
-                let sptr = alloc_array::<u8>(info_len as usize);
-                glGetShaderInfoLog(shader, info_len as GLsizei, core::ptr::null_mut(), sptr as *mut GLchar);
-                libc::puts(sptr as *const i8);
-                free_array(sptr, info_len as usize, info_len as usize);
-            }
-
-            glDeleteShader(shader);
-            return None
-        }
-        Some(shader)
-    }
-}
-
-fn load_program(vs: &str, fs: &str) -> Option<GLuint> {
-    unsafe {
-        let program_object = glCreateProgram();
-        if program_object == 0 {
-            return None
-        }
-
-        let vertex_shader    = load_shader(vs, GL_VERTEX_SHADER);
-        let fragment_shader  = load_shader(fs, GL_FRAGMENT_SHADER);
-
-        match (vertex_shader, fragment_shader) {
-            (None, None) => (),
-            (None, Some(f)) => glDeleteShader(f),
-            (Some(v), None) => glDeleteShader(v),
-            (Some(v), Some(f)) => {
-                glAttachShader(program_object, v);
-                glAttachShader(program_object, f);
-                glBindAttribLocation(program_object, 0, "vPosition\0".as_ptr() as *const GLchar);
-                glLinkProgram(program_object);
-
-                let mut linked = 0;
-                glGetProgramiv(program_object, GL_LINK_STATUS, &mut linked);
-                if linked == 0 {
-                    let mut info_len = 0;
-                    glGetProgramiv(program_object, GL_INFO_LOG_LENGTH, &mut info_len);
-                    if info_len > 1 {
-                        let sptr = alloc_array::<u8>(info_len as usize);
-                        glGetProgramInfoLog(program_object, info_len as GLsizei, core::ptr::null_mut(), sptr as *mut GLchar);
-                        libc::puts(sptr as *const i8);
-                        free_array(sptr, info_len as usize, info_len as usize);
-                    }
-
-                    glDeleteShader(program_object);
-                    return None
-                }
-            }
-        }
-
-        Some(program_object)
-    }
-}
 
 static VERTEX_SHADER : &'static str = "
 attribute highp vec4 vPosition;
@@ -137,8 +73,16 @@ extern "C" {
 }
 
 pub struct State {
-    program : Option<GLuint>,
-    buff    : GLuint,
+    program : Option<Program>,
+    buff    : StaticVertexBuffer,
+
+    monkey_vb   : StaticVertexBuffer,
+    monkey_ib   : StaticIndexBuffer,
+}
+
+struct NullUniforms;
+impl UniformBlock for NullUniforms {
+    fn count(&self) -> usize { 0 }
 }
 
 extern "C"
@@ -154,15 +98,13 @@ fn main_loop(win_: *mut c_void) {
         glScissor(0, 0, width, height);
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        let u = NullUniforms;
 
-        match (*state).program {
+        match &(*state).program {
             Some(p) => {
-
-                glUseProgram(p);
-                glBindBuffer(GL_ARRAY_BUFFER, (*state).buff);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE as u8, 0, 0 as *const c_void);
-                glEnableVertexAttribArray(0);
-                glDrawArrays(GL_TRIANGLES, 0, 3);
+                draw(p, &(*state).buff, &u);
+                glDisable(GL_CULL_FACE);
+                draw_indexed(p, &(*state).monkey_vb, &(*state).monkey_ib, &u);
             },
             None => ()
         }
@@ -209,23 +151,28 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
             core::ptr::null::<GLFWwindow>() as *mut GLFWwindow);
         glfwMakeContextCurrent(win);
 
-        let program = load_program(&VERTEX_SHADER, &FRAGMENT_SHADER);
+        let attribs = [ VertexAttribute::new(String::from("vPosition"), VertexFormat::Float3, 0) ];
+        let program = Program::load_program(&VERTEX_SHADER, &FRAGMENT_SHADER, &attribs, &[]);
 
-        let m = Mesh::read_obj("suzane.obj");
-        match m {
-            Ok(m) => println!("verts     : {}\nuvws      : {}\ntris      : {}\nquads     : {}", m.verts().len(), m.uvws().len(), m.tris().len(), m.quads().len()),
-            _ => ()
-        }
-        let mut buff = 0;
-        glGenBuffers(1, &mut buff);
-        let vertices : [f32; 9] =
-        [   0.0,    0.5,    0.0,
-            -0.5,   -0.5,   0.0,
-            0.5,    -0.5,   0.0 ];
-        glBindBuffer(GL_ARRAY_BUFFER, buff);
-        glBufferData(GL_ARRAY_BUFFER, 4 * 9 as GLsizeiptr, vertices.as_ptr() as *const rs_ctypes::c_void, GL_STATIC_DRAW);
+        let m =
+            match Mesh::read_obj("suzane.obj") {
+                Ok(m) => {
+                    println!("verts     : {}\nuvws      : {}\ntris      : {}\nquads     : {}", m.verts().len(), m.uvws().len(), m.tris().len(), m.quads().len());
+                    GPUMesh::from(&m)
+                },
+                _ => panic!("Error reading file")
+            };
 
-        let state = Box::new(State { program : program, buff : buff});
+        let monkey_vb = StaticVertexBuffer::new(m.verts());
+        let monkey_ib = StaticIndexBuffer::new(m.tris());
+        let vertices : [Vec3f; 3] =
+        [   Vec3f::new(0.0,    0.5,    0.0),
+            Vec3f::new(-0.5,   -0.5,   0.0),
+            Vec3f::new(0.5,    -0.5,   0.0) ];
+
+        let buff = StaticVertexBuffer::new(&vertices);
+
+        let state = Box::new(State { program : program, buff : buff, monkey_vb: monkey_vb, monkey_ib: monkey_ib });
         glfwSetWindowUserPointer(win, state.as_ref() as *const State as *mut ::core::ffi::c_void);
         run_main_loop(win);
 

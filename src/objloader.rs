@@ -1,3 +1,31 @@
+// Copyright 2020-Present (c) Raja Lehtihet & Wael El Oraiby
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+// this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+// this list of conditions and the following disclaimer in the documentation
+// and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+// may be used to endorse or promote products derived from this software without
+// specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+//
 use core::result::Result;
 use rs_collections::*;
 use rs_streams::*;
@@ -12,6 +40,7 @@ pub struct IdTri {
 impl IdTri {
     pub fn new(verts: [u32; 3], uvs: [u32; 3]) -> Self { Self { verts: verts, uvs: uvs } }
 }
+
 
 pub struct IdQuad {
     verts   : [u32; 4],
@@ -168,5 +197,77 @@ impl Mesh {
 
         Ok(Mesh::from(verts, uvws, tris, quads))
     }
+}
 
+#[repr(C)]
+pub struct GPUVertex {
+    pub pos     : Vec3f,
+    pub normal  : Vec3f,
+    pub uv      : Vec2f,
+}
+
+pub struct GPUMesh {
+    verts   : Vec<GPUVertex>,
+    tris    : Vec<u32>,
+}
+
+impl GPUMesh {
+    pub fn from(mesh: &Mesh) -> Self {
+        let mut gpv = Vec::new();
+        let mut tris = Vec::new();
+
+        for t in mesh.tris().iter() {
+            let v0 = mesh.verts[t.verts[0] as usize];
+            let v1 = mesh.verts[t.verts[1] as usize];
+            let v2 = mesh.verts[t.verts[2] as usize];
+
+            let n = rs_math3d::triNormal(&v0, &v1, &v2);
+
+            let uv0 = mesh.verts[t.uvs[0] as usize];
+            let uv1 = mesh.verts[t.uvs[1] as usize];
+            let uv2 = mesh.verts[t.uvs[2] as usize];
+
+            let idx = gpv.len();
+            gpv.push(GPUVertex { pos: v0, normal: n.clone(), uv: Vec2f::new(uv0.x, uv0.y) });
+            gpv.push(GPUVertex { pos: v1, normal: n.clone(), uv: Vec2f::new(uv1.x, uv1.y) });
+            gpv.push(GPUVertex { pos: v2, normal: n.clone(), uv: Vec2f::new(uv2.x, uv2.y) });
+
+            tris.push(idx as u32);
+            tris.push(idx as u32 + 1);
+            tris.push(idx as u32 + 2);
+        }
+
+        for q in mesh.quads().iter() {
+            let v0 = mesh.verts[q.verts[0] as usize];
+            let v1 = mesh.verts[q.verts[1] as usize];
+            let v2 = mesh.verts[q.verts[2] as usize];
+            let v3 = mesh.verts[q.verts[3] as usize];
+
+            let n = rs_math3d::quadNormal(&v0, &v1, &v2, &v3);
+
+            let uv0 = mesh.verts[q.uvs[0] as usize];
+            let uv1 = mesh.verts[q.uvs[1] as usize];
+            let uv2 = mesh.verts[q.uvs[2] as usize];
+            let uv3 = mesh.verts[q.uvs[3] as usize];
+
+            let idx = gpv.len();
+            gpv.push(GPUVertex { pos: v0, normal: n.clone(), uv: Vec2f::new(uv0.x, uv0.y) });
+            gpv.push(GPUVertex { pos: v1, normal: n.clone(), uv: Vec2f::new(uv1.x, uv1.y) });
+            gpv.push(GPUVertex { pos: v2, normal: n.clone(), uv: Vec2f::new(uv2.x, uv2.y) });
+            gpv.push(GPUVertex { pos: v3, normal: n.clone(), uv: Vec2f::new(uv3.x, uv3.y) });
+
+            tris.push(idx as u32);
+            tris.push(idx as u32 + 1);
+            tris.push(idx as u32 + 2);
+
+            tris.push(idx as u32 + 2);
+            tris.push(idx as u32 + 3);
+            tris.push(idx as u32);
+        }
+
+        Self { verts: gpv, tris: tris }
+    }
+
+    pub fn verts(&self) -> &[GPUVertex] { self.verts.as_slice() }
+    pub fn tris(&self) -> &[u32] { self.tris.as_slice() }
 }
