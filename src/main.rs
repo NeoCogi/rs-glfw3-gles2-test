@@ -55,8 +55,9 @@ fn alt_std_panic(_info: &core::panic::PanicInfo) -> ! {
 
 static VERTEX_SHADER : &'static str = "
 attribute highp vec4 vPosition;
+uniform highp mat4 uMVP;
 void main() {
-    gl_Position = vPosition;
+    gl_Position = uMVP * vPosition;
 }\0";
 
 static FRAGMENT_SHADER : &'static str = "
@@ -82,9 +83,17 @@ pub struct State {
     monkey_ib   : StaticIndexBuffer,
 }
 
-struct NullUniforms;
-impl UniformBlock for NullUniforms {
-    fn uniform_descs(&self) -> &[UniformDataDesc] { &[] }
+struct Uniforms {
+    mvp         : Mat4f,
+}
+
+
+impl UniformBlock for Uniforms {
+    fn descriptors() -> Vec<UniformDataDesc> {
+        let mut v = Vec::new();
+        v.push(UniformDataDesc::new(String::from("uMVP"), UniformDataType::Float4x4, 0, 0));
+        v
+    }
 }
 
 extern "C"
@@ -100,7 +109,7 @@ fn main_loop(win_: *mut c_void) {
         glScissor(0, 0, width, height);
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-        let u = NullUniforms;
+        let u = Uniforms { mvp: Mat4f::identity() };
 
         match &(*state).program {
             Some(p) => {
@@ -154,7 +163,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
         glfwMakeContextCurrent(win);
 
         let attribs = [ VertexAttribute::new(String::from("vPosition"), VertexFormat::Float3, 0) ];
-        let program = Program::load_program(&VERTEX_SHADER, &FRAGMENT_SHADER, &attribs, &[]);
+        let uniforms = [ UniformDesc::new(String::from("uMVP"), UniformDataType::Float4x4, 0) ];
+        let program = Program::load_program(&VERTEX_SHADER, &FRAGMENT_SHADER, &attribs, &uniforms);
 
         let m =
             match Mesh::read_obj("suzane.obj") {

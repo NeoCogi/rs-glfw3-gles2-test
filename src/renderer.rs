@@ -108,5 +108,11 @@ impl UniformDataDesc {
     pub fn desc(&self)      -> &UniformDesc   { &self.desc }
 }
 
+pub trait UniformBlock {
+    fn descriptors() -> Vec<UniformDataDesc>;
+}
 
-
+pub trait Program {
+    fn attributes(&self) -> &[VertexAttribute];
+    fn uniforms(&self) -> &[UniformDesc];
+}

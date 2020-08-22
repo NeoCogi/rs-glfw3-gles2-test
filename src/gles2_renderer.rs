@@ -248,9 +248,6 @@ impl Drop for StaticIndexBuffer {
         unsafe { glDeleteBuffers(1, &self.buff_id as *const GLuint) }
     }
 }
-pub trait UniformBlock {
-    fn uniform_descs(&self) -> &[UniformDataDesc];
-}
 
 trait GLUniformBlock {
     fn setup(&self);
@@ -295,22 +292,22 @@ trait GLVertexFormat {
 impl GLVertexFormat for VertexFormat {
     fn gl_elem_count(&self) -> GLuint {
         match self {
-            VertexFormat::Byte => 1,
-            VertexFormat::Byte2 => 2,
-            VertexFormat::Byte3 => 3,
-            VertexFormat::Byte4 => 4,
-            VertexFormat::SByte => 1,
-            VertexFormat::SByte2 => 2,
-            VertexFormat::SByte3 => 3,
-            VertexFormat::SByte4 => 4,
-            VertexFormat::Int => 1,
-            VertexFormat::Int2 => 2,
-            VertexFormat::Int3 => 3,
-            VertexFormat::Int4 => 4,
-            VertexFormat::Float => 1,
-            VertexFormat::Float2 => 2,
-            VertexFormat::Float3 => 3,
-            VertexFormat::Float4 => 4,
+            VertexFormat::Byte      => 1,
+            VertexFormat::Byte2     => 2,
+            VertexFormat::Byte3     => 3,
+            VertexFormat::Byte4     => 4,
+            VertexFormat::SByte     => 1,
+            VertexFormat::SByte2    => 2,
+            VertexFormat::SByte3    => 3,
+            VertexFormat::SByte4    => 4,
+            VertexFormat::Int       => 1,
+            VertexFormat::Int2      => 2,
+            VertexFormat::Int3      => 3,
+            VertexFormat::Int4      => 4,
+            VertexFormat::Float     => 1,
+            VertexFormat::Float2    => 2,
+            VertexFormat::Float3    => 3,
+            VertexFormat::Float4    => 4,
         }
     }
 
@@ -337,22 +334,22 @@ impl GLVertexFormat for VertexFormat {
 
     fn gl_is_normalized(&self) -> GLboolean {
         let r = match self {
-            VertexFormat::Byte => true,
-            VertexFormat::Byte2 => true,
-            VertexFormat::Byte3 => true,
-            VertexFormat::Byte4 => true,
-            VertexFormat::SByte => true,
-            VertexFormat::SByte2 => true,
-            VertexFormat::SByte3 => true,
-            VertexFormat::SByte4 => true,
-            VertexFormat::Int => false,
-            VertexFormat::Int2 => false,
-            VertexFormat::Int3 => false,
-            VertexFormat::Int4 => false,
-            VertexFormat::Float => false,
-            VertexFormat::Float2 => false,
-            VertexFormat::Float3 => false,
-            VertexFormat::Float4 => false,
+            VertexFormat::Byte      => true,
+            VertexFormat::Byte2     => true,
+            VertexFormat::Byte3     => true,
+            VertexFormat::Byte4     => true,
+            VertexFormat::SByte     => true,
+            VertexFormat::SByte2    => true,
+            VertexFormat::SByte3    => true,
+            VertexFormat::SByte4    => true,
+            VertexFormat::Int       => false,
+            VertexFormat::Int2      => false,
+            VertexFormat::Int3      => false,
+            VertexFormat::Int4      => false,
+            VertexFormat::Float     => false,
+            VertexFormat::Float2    => false,
+            VertexFormat::Float3    => false,
+            VertexFormat::Float4    => false,
         };
         r as GLboolean
     }
@@ -409,7 +406,7 @@ fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, d
 pub fn draw<T: UniformBlock>(prg: &Program, buff: &StaticVertexBuffer, uniforms: &T) {
     let u_ptr   = uniforms as *const T as *const c_void;
     let descs   = prg.uniforms.as_slice();
-    draw_raw(prg, buff, u_ptr, uniforms.uniform_descs());
+    draw_raw(prg, buff, u_ptr, T::descriptors().as_slice());
 }
 
 fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
@@ -435,5 +432,5 @@ fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuff
 pub fn draw_indexed<T: UniformBlock>(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: &T) {
     let u_ptr   = uniforms as *const T as *const c_void;
     let descs   = prg.uniforms.as_slice();
-    draw_indexed_raw(prg, vb, ib, u_ptr, uniforms.uniform_descs());
+    draw_indexed_raw(prg, vb, ib, u_ptr, T::descriptors().as_slice());
 }
