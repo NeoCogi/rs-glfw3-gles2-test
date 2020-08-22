@@ -38,10 +38,12 @@ use rs_collections::*;
 use rs_math3d::*;
 
 
+mod renderer;
 mod objloader;
 mod gles2_renderer;
 
 use objloader::*;
+use renderer::*;
 use gles2_renderer::*;
 
 #[cfg(not(test))]
@@ -82,7 +84,7 @@ pub struct State {
 
 struct NullUniforms;
 impl UniformBlock for NullUniforms {
-    fn count(&self) -> usize { 0 }
+    fn uniform_descs(&self) -> &[UniformDataDesc] { &[] }
 }
 
 extern "C"

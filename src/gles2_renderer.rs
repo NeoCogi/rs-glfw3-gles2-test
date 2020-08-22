@@ -26,143 +26,12 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
+use crate::renderer::*;
 use rs_gles2::bindings::*;
 use rs_ctypes::*;
 use rs_mem::*;
 use rs_collections::*;
 use rs_math3d::*;
-
-
-#[derive(Clone)]
-pub enum VertexFormat {
-    Byte,
-    Byte2,
-    Byte3,
-    Byte4,
-    SByte,
-    SByte2,
-    SByte3,
-    SByte4,
-    Int,
-    Int2,
-    Int3,
-    Int4,
-    Float,
-    Float2,
-    Float3,
-    Float4,
-}
-
-impl VertexFormat {
-    fn gl_elem_count(&self) -> GLuint {
-        match self {
-            VertexFormat::Byte => 1,
-            VertexFormat::Byte2 => 2,
-            VertexFormat::Byte3 => 3,
-            VertexFormat::Byte4 => 4,
-            VertexFormat::SByte => 1,
-            VertexFormat::SByte2 => 2,
-            VertexFormat::SByte3 => 3,
-            VertexFormat::SByte4 => 4,
-            VertexFormat::Int => 1,
-            VertexFormat::Int2 => 2,
-            VertexFormat::Int3 => 3,
-            VertexFormat::Int4 => 4,
-            VertexFormat::Float => 1,
-            VertexFormat::Float2 => 2,
-            VertexFormat::Float3 => 3,
-            VertexFormat::Float4 => 4,
-        }
-    }
-
-    fn gl_elem_type(&self) -> GLenum {
-        match self {
-            VertexFormat::Byte      => GL_UNSIGNED_BYTE,
-            VertexFormat::Byte2     => GL_UNSIGNED_BYTE,
-            VertexFormat::Byte3     => GL_UNSIGNED_BYTE,
-            VertexFormat::Byte4     => GL_UNSIGNED_BYTE,
-            VertexFormat::SByte     => GL_BYTE,
-            VertexFormat::SByte2    => GL_BYTE,
-            VertexFormat::SByte3    => GL_BYTE,
-            VertexFormat::SByte4    => GL_BYTE,
-            VertexFormat::Int       => GL_INT,
-            VertexFormat::Int2      => GL_INT,
-            VertexFormat::Int3      => GL_INT,
-            VertexFormat::Int4      => GL_INT,
-            VertexFormat::Float     => GL_FLOAT,
-            VertexFormat::Float2    => GL_FLOAT,
-            VertexFormat::Float3    => GL_FLOAT,
-            VertexFormat::Float4    => GL_FLOAT,
-        }
-    }
-
-    fn gl_is_normalized(&self) -> GLboolean {
-        let r = match self {
-            VertexFormat::Byte => true,
-            VertexFormat::Byte2 => true,
-            VertexFormat::Byte3 => true,
-            VertexFormat::Byte4 => true,
-            VertexFormat::SByte => true,
-            VertexFormat::SByte2 => true,
-            VertexFormat::SByte3 => true,
-            VertexFormat::SByte4 => true,
-            VertexFormat::Int => false,
-            VertexFormat::Int2 => false,
-            VertexFormat::Int3 => false,
-            VertexFormat::Int4 => false,
-            VertexFormat::Float => false,
-            VertexFormat::Float2 => false,
-            VertexFormat::Float3 => false,
-            VertexFormat::Float4 => false,
-        };
-        r as GLboolean
-    }
-}
-
-#[derive(Clone)]
-pub struct VertexAttribute {
-    name        : String,
-    format      : VertexFormat,
-    offset      : usize,
-}
-
-impl VertexAttribute {
-    pub fn new(name: String, format: VertexFormat, offset: usize) -> Self { Self { name: name, format: format, offset: offset } }
-    pub fn name(&self)      -> &String  { &self.name  }
-    pub fn format(&self)    -> VertexFormat   { self.format.clone() }
-    pub fn offset(&self)    -> usize    { self.offset }
-}
-
-#[derive(Clone)]
-pub enum UniformDataType {
-    Int,
-    Int2,
-    Int3,
-    Int4,
-    Float,
-    Float2,
-    Float3,
-    Float4,
-    Float2x2,
-    Float3x3,
-    Float4x4,
-}
-
-#[derive(Clone)]
-pub struct UniformDesc {
-    name        : String,
-    format      : UniformDataType,
-    offset      : usize,
-    count       : usize,
-}
-
-impl UniformDesc {
-    pub fn new(name: String, format: UniformDataType, offset: usize, count: usize) -> Self { Self { name: name, format: format, offset: offset, count: count } }
-    pub fn name(&self)      -> &String  { &self.name  }
-    pub fn format(&self)    -> UniformDataType   { self.format.clone() }
-    pub fn offset(&self)    -> usize    { self.offset }
-    pub fn count(&self)     -> usize    { self.count  }
-}
 
 pub struct Program {
     prog_id     : GLuint,
@@ -257,7 +126,7 @@ impl Program {
             let mut prg_uniforms = Vec::new();
 
             for u in uniforms {
-                let mut s = String::from(u.name().as_str());
+                let mut s = String::from(u.name());
                 s.push('\0' as u8);
 
                 let au = glGetUniformLocation(program_object, s.as_bytes().as_ptr() as *const GLchar) as GLuint;
@@ -380,8 +249,7 @@ impl Drop for StaticIndexBuffer {
     }
 }
 pub trait UniformBlock {
-    fn count(&self) -> usize;
-    //fn uniform_desc(&self, idx: usize) -> &UniformDesc;
+    fn uniform_descs(&self) -> &[UniformDataDesc];
 }
 
 trait GLUniformBlock {
@@ -418,6 +286,78 @@ impl GLIndexBuffer for StaticIndexBuffer {
     }
 }
 
+trait GLVertexFormat {
+    fn gl_elem_count(&self) -> GLuint;
+    fn gl_elem_type(&self) -> GLenum;
+    fn gl_is_normalized(&self) -> GLboolean;
+}
+
+impl GLVertexFormat for VertexFormat {
+    fn gl_elem_count(&self) -> GLuint {
+        match self {
+            VertexFormat::Byte => 1,
+            VertexFormat::Byte2 => 2,
+            VertexFormat::Byte3 => 3,
+            VertexFormat::Byte4 => 4,
+            VertexFormat::SByte => 1,
+            VertexFormat::SByte2 => 2,
+            VertexFormat::SByte3 => 3,
+            VertexFormat::SByte4 => 4,
+            VertexFormat::Int => 1,
+            VertexFormat::Int2 => 2,
+            VertexFormat::Int3 => 3,
+            VertexFormat::Int4 => 4,
+            VertexFormat::Float => 1,
+            VertexFormat::Float2 => 2,
+            VertexFormat::Float3 => 3,
+            VertexFormat::Float4 => 4,
+        }
+    }
+
+    fn gl_elem_type(&self) -> GLenum {
+        match self {
+            VertexFormat::Byte      => GL_UNSIGNED_BYTE,
+            VertexFormat::Byte2     => GL_UNSIGNED_BYTE,
+            VertexFormat::Byte3     => GL_UNSIGNED_BYTE,
+            VertexFormat::Byte4     => GL_UNSIGNED_BYTE,
+            VertexFormat::SByte     => GL_BYTE,
+            VertexFormat::SByte2    => GL_BYTE,
+            VertexFormat::SByte3    => GL_BYTE,
+            VertexFormat::SByte4    => GL_BYTE,
+            VertexFormat::Int       => GL_INT,
+            VertexFormat::Int2      => GL_INT,
+            VertexFormat::Int3      => GL_INT,
+            VertexFormat::Int4      => GL_INT,
+            VertexFormat::Float     => GL_FLOAT,
+            VertexFormat::Float2    => GL_FLOAT,
+            VertexFormat::Float3    => GL_FLOAT,
+            VertexFormat::Float4    => GL_FLOAT,
+        }
+    }
+
+    fn gl_is_normalized(&self) -> GLboolean {
+        let r = match self {
+            VertexFormat::Byte => true,
+            VertexFormat::Byte2 => true,
+            VertexFormat::Byte3 => true,
+            VertexFormat::Byte4 => true,
+            VertexFormat::SByte => true,
+            VertexFormat::SByte2 => true,
+            VertexFormat::SByte3 => true,
+            VertexFormat::SByte4 => true,
+            VertexFormat::Int => false,
+            VertexFormat::Int2 => false,
+            VertexFormat::Int3 => false,
+            VertexFormat::Int4 => false,
+            VertexFormat::Float => false,
+            VertexFormat::Float2 => false,
+            VertexFormat::Float3 => false,
+            VertexFormat::Float4 => false,
+        };
+        r as GLboolean
+    }
+}
+
 fn uniform_ptr_to_slice<'a, T>(ptr: *const c_void, offset: usize, count: usize) -> &'a [T] {
     let cptr = ptr as *const u8;
     let _cptr = unsafe { cptr.offset(offset as isize) };
@@ -425,12 +365,12 @@ fn uniform_ptr_to_slice<'a, T>(ptr: *const c_void, offset: usize, count: usize) 
     unsafe { core::slice::from_raw_parts(tptr, count) }
 }
 
-fn setup_uniforms(uniforms: *const c_void, desc_layout: &[(UniformDesc, GLuint)]) {
+fn setup_uniforms(uniforms: *const c_void, data_desc_layout: &[UniformDataDesc], prg_desc_layout: &[(UniformDesc, GLuint)]) {
     unsafe {
-        for i in 0..desc_layout.len() {
-            let offset = desc_layout[i].0.offset;
-            let location = desc_layout[i].1 as GLint;
-            match &desc_layout[i].0.format {
+        for i in 0..data_desc_layout.len() {
+            let offset = data_desc_layout[i].offset();
+            let location = prg_desc_layout[i].1 as GLint;
+            match &data_desc_layout[i].desc().format() {
                 UniformDataType::Int  => { let s : &[i32]     = uniform_ptr_to_slice(uniforms, offset, 1);  glUniform1iv(location, 1, s.as_ptr()); },
                 UniformDataType::Int2 => { let s : &[i32]     = uniform_ptr_to_slice(uniforms, offset, 2);  glUniform2iv(location, 1, s.as_ptr()); },
                 UniformDataType::Int3 => { let s : &[i32]     = uniform_ptr_to_slice(uniforms, offset, 3);  glUniform3iv(location, 1, s.as_ptr()); },
@@ -448,7 +388,7 @@ fn setup_uniforms(uniforms: *const c_void, desc_layout: &[(UniformDesc, GLuint)]
 }
 
 
-fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, desc_layout: &[(UniformDesc, GLuint)]) {
+fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
     unsafe {
         glUseProgram(prg.prog_id);
         glBindBuffer(GL_ARRAY_BUFFER, buff.buff_id());
@@ -457,7 +397,7 @@ fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, d
             glEnableVertexAttribArray(*l);
         }
 
-        setup_uniforms(uniforms, prg.uniforms.as_slice());
+        setup_uniforms(uniforms, data_desc_layout, prg.uniforms.as_slice());
         glDrawArrays(GL_TRIANGLES, 0, (buff.size / buff.stride) as GLint);
 
         for (_, l) in prg.attribs.iter() {
@@ -469,10 +409,10 @@ fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, d
 pub fn draw<T: UniformBlock>(prg: &Program, buff: &StaticVertexBuffer, uniforms: &T) {
     let u_ptr   = uniforms as *const T as *const c_void;
     let descs   = prg.uniforms.as_slice();
-    draw_raw(prg, buff, u_ptr, descs);
+    draw_raw(prg, buff, u_ptr, uniforms.uniform_descs());
 }
 
-fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: *const c_void, desc_layout: &[(UniformDesc, GLuint)]) {
+fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
     unsafe {
         glUseProgram(prg.prog_id);
         glBindBuffer(GL_ARRAY_BUFFER, vb.buff_id());
@@ -483,7 +423,7 @@ fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuff
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib.buff_id);
 
-        setup_uniforms(uniforms, prg.uniforms.as_slice());
+        setup_uniforms(uniforms, data_desc_layout, prg.uniforms.as_slice());
         glDrawElements(GL_TRIANGLES, ib.count(), ib.index_type(), core::ptr::null() as *const rs_ctypes::c_void);
 
         for (_, l) in prg.attribs.iter() {
@@ -495,5 +435,5 @@ fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuff
 pub fn draw_indexed<T: UniformBlock>(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: &T) {
     let u_ptr   = uniforms as *const T as *const c_void;
     let descs   = prg.uniforms.as_slice();
-    draw_indexed_raw(prg, vb, ib, u_ptr, descs);
+    draw_indexed_raw(prg, vb, ib, u_ptr, uniforms.uniform_descs());
 }
