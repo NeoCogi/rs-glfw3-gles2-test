@@ -76,7 +76,7 @@ extern "C" {
 }
 
 pub struct State {
-    program : Option<Program>,
+    program : Option<Box<dyn Program>>,
     buff    : StaticVertexBuffer,
 
     monkey_vb   : StaticVertexBuffer,
@@ -164,7 +164,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
 
         let attribs = [ VertexAttribute::new(String::from("vPosition"), VertexFormat::Float3, 0) ];
         let uniforms = [ UniformDesc::new(String::from("uMVP"), UniformDataType::Float4x4, 0) ];
-        let program = Program::load_program(&VERTEX_SHADER, &FRAGMENT_SHADER, &attribs, &uniforms);
+        let program = GLProgram::load_program(&VERTEX_SHADER, &FRAGMENT_SHADER, &attribs, &uniforms);
 
         let m =
             match Mesh::read_obj("suzane.obj") {

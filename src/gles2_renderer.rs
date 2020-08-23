@@ -33,13 +33,13 @@ use rs_mem::*;
 use rs_collections::*;
 use rs_math3d::*;
 
-pub struct Program {
+pub struct GLProgram {
     prog_id     : GLuint,
     attribs     : Vec<(VertexAttribute, GLuint)>,
     uniforms    : Vec<(UniformDesc, GLuint)>,
 }
 
-impl Program {
+impl GLProgram {
     fn load_shader(src: &str, ty: GLenum) -> Option<GLuint> {
         unsafe {
             let shader = glCreateShader(ty);
@@ -69,7 +69,7 @@ impl Program {
         }
     }
 
-    pub fn load_program(vs: &str, fs: &str, attribs: &[VertexAttribute], uniforms: &[UniformDesc]) -> Option<Self> {
+    pub fn load_program(vs: &str, fs: &str, attribs: &[VertexAttribute], uniforms: &[UniformDesc]) -> Option<Box<dyn Program>> {
         unsafe {
             let program_object = glCreateProgram();
             if program_object == 0 {
@@ -133,30 +133,21 @@ impl Program {
                 prg_uniforms.push((u.clone(), au));
             }
 
-            Some(Self { prog_id: program_object, attribs: prg_attribs, uniforms: prg_uniforms })
+            let s = Box::new(Self { prog_id: program_object, attribs: prg_attribs, uniforms: prg_uniforms });
+            Some(Box::from_raw(s.into_raw() as *mut dyn Program))
         }
     }
 }
 
-impl Drop for Program {
+impl Drop for GLProgram {
     fn drop(&mut self) {
         unsafe { glDeleteProgram(self.prog_id) };
     }
 }
 
-#[derive(Clone)]
-pub enum Uniform {
-    Int     (i32),
-    Int2    (Vec2i),
-    Int3    (Vec3i),
-    Int4    (Vec4i),
-    Float   (f32),
-    Float2  (Vec2f),
-    Float3  (Vec3f),
-    Float4  (Vec4f),
-    Float2x2(Mat2f),
-    Float3x3(Mat3f),
-    Float4x4(Mat4f),
+impl Program for GLProgram {
+    fn attributes(&self) -> &[VertexAttribute] { &[] }
+    fn uniforms(&self) -> &[UniformDesc] { &[] }
 }
 
 pub struct StaticVertexBuffer {
@@ -385,7 +376,7 @@ fn setup_uniforms(uniforms: *const c_void, data_desc_layout: &[UniformDataDesc],
 }
 
 
-fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
+fn draw_raw(prg: &GLProgram, buff: &StaticVertexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
     unsafe {
         glUseProgram(prg.prog_id);
         glBindBuffer(GL_ARRAY_BUFFER, buff.buff_id());
@@ -403,13 +394,13 @@ fn draw_raw(prg: &Program, buff: &StaticVertexBuffer, uniforms: *const c_void, d
     }
 }
 
-pub fn draw<T: UniformBlock>(prg: &Program, buff: &StaticVertexBuffer, uniforms: &T) {
+pub fn draw<T: UniformBlock>(prg: &Box<dyn Program>, buff: &StaticVertexBuffer, uniforms: &T) {
+    let gl_prog = unsafe { &*(prg.as_ref() as *const dyn Program as *const GLProgram) };
     let u_ptr   = uniforms as *const T as *const c_void;
-    let descs   = prg.uniforms.as_slice();
-    draw_raw(prg, buff, u_ptr, T::descriptors().as_slice());
+    draw_raw(gl_prog, buff, u_ptr, T::descriptors().as_slice());
 }
 
-fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
+fn draw_indexed_raw(prg: &GLProgram, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: *const c_void, data_desc_layout: &[UniformDataDesc]) {
     unsafe {
         glUseProgram(prg.prog_id);
         glBindBuffer(GL_ARRAY_BUFFER, vb.buff_id());
@@ -429,8 +420,8 @@ fn draw_indexed_raw(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuff
     }
 }
 
-pub fn draw_indexed<T: UniformBlock>(prg: &Program, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: &T) {
+pub fn draw_indexed<T: UniformBlock>(prg: &Box<dyn Program>, vb: &StaticVertexBuffer, ib: &StaticIndexBuffer, uniforms: &T) {
+    let gl_prog = unsafe { &*(prg.as_ref() as *const dyn Program as *const GLProgram) };
     let u_ptr   = uniforms as *const T as *const c_void;
-    let descs   = prg.uniforms.as_slice();
-    draw_indexed_raw(prg, vb, ib, u_ptr, T::descriptors().as_slice());
+    draw_indexed_raw(gl_prog, vb, ib, u_ptr, T::descriptors().as_slice());
 }
