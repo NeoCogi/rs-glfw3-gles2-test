@@ -134,7 +134,7 @@ impl GLProgram {
             }
 
             let s = Box::new(Self { prog_id: program_object, attribs: prg_attribs, uniforms: prg_uniforms });
-            Some(Box::from_raw(s.into_raw() as *mut dyn Program))
+            Some(Box::from_raw(Box::into_raw(s) as *mut dyn Program))
         }
     }
 }
