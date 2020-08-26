@@ -27,8 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 use rs_ctypes::*;
-use rs_mem::*;
-use rs_collections::*;
+use rs_alloc::*;
 use rs_math3d::*;
 
 

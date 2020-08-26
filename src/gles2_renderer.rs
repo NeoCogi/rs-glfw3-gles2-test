@@ -29,8 +29,7 @@
 use crate::renderer::*;
 use rs_gles2::bindings::*;
 use rs_ctypes::*;
-use rs_mem::*;
-use rs_collections::*;
+use rs_alloc::*;
 use rs_math3d::*;
 
 pub struct GLProgram {

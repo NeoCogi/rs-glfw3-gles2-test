@@ -32,9 +32,8 @@
 use rs_ctypes::*;
 use rs_glfw3::bindings::*;
 use rs_gles2::bindings::*;
-use rs_mem::*;
 use rs_streams::*;
-use rs_collections::*;
+use rs_alloc::*;
 use rs_math3d::*;
 
 

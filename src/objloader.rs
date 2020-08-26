@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 use core::result::Result;
-use rs_collections::*;
+use rs_alloc::*;
 use rs_streams::*;
 
 use rs_math3d::*;
