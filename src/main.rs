@@ -29,6 +29,9 @@
 #![no_std]
 #![no_main]
 
+#[link(name="m")]
+extern "C" {}
+
 use rs_ctypes::*;
 use rs_glfw3::bindings::*;
 use rs_gles2::bindings::*;
@@ -53,16 +56,23 @@ fn alt_std_panic(_info: &core::panic::PanicInfo) -> ! {
 
 
 static VERTEX_SHADER : &'static str = "
-attribute highp vec4 vPosition;
+attribute highp vec4 aPosition;
+attribute highp vec3 aNormal;
+
 uniform highp mat4 uMVP;
+
+varying highp vec3 vNormal;
+
 void main() {
-    gl_Position = uMVP * vPosition;
+    gl_Position = uMVP * aPosition;
+    vNormal = aNormal;
 }\0";
 
 static FRAGMENT_SHADER : &'static str = "
 precision mediump float;
+varying highp vec3 vNormal;
 void main() {
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    gl_FragColor = vec4(vNormal.xyz, 1.0);
 }\0";
 
 #[cfg(target_arch = "wasm32")]
@@ -108,7 +118,8 @@ fn main_loop(win_: *mut c_void) {
         glScissor(0, 0, width, height);
         glClearColor(0.0, 0.0, 0.0, 1.0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-        let u = Uniforms { mvp: Mat4f::identity() };
+        let r = Quatf::ofAxisAngle(&Vec3f::new(0.0, 1.0, 0.0), 3.1415 / 2.0);
+        let u = Uniforms { mvp: Mat4f::identity() * r.mat4() };
 
         match &(*state).program {
             Some(p) => {
@@ -161,7 +172,10 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
             core::ptr::null::<GLFWwindow>() as *mut GLFWwindow);
         glfwMakeContextCurrent(win);
 
-        let attribs = [ VertexAttribute::new(String::from("vPosition"), VertexFormat::Float3, 0) ];
+        let attribs = [
+            VertexAttribute::new(String::from("aPosition"), VertexFormat::Float3, 0),
+            VertexAttribute::new(String::from("aNormal"), VertexFormat::Float3, 12),
+            ];
         let uniforms = [ UniformDesc::new(String::from("uMVP"), UniformDataType::Float4x4, 0) ];
         let program = GLProgram::load_program(&VERTEX_SHADER, &FRAGMENT_SHADER, &attribs, &uniforms);
 
