@@ -30,6 +30,6 @@ panic = "abort"
 #opt-level = "z"
 overflow-checks = false
 debug-assertions = false
-lto = true
+# lto = true
 incremental = false
 panic = "abort"
