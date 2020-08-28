@@ -10,4 +10,10 @@ This is a test of all the no-std crates:
 
 ![](suzane.png)
 
+If you want to run it in your browser, after you install emsdk and rust's wasm32-unknown-emscripten target:
+
+```
+./build-wasm32-emscripten.sh
+```
+
 Enjoy!
