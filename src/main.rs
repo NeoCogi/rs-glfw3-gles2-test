@@ -86,7 +86,6 @@ extern "C" {
 
 pub struct State {
     program : Option<Box<dyn Program>>,
-    buff    : StaticVertexBuffer,
 
     monkey_vb   : StaticVertexBuffer,
     monkey_ib   : StaticIndexBuffer,
@@ -129,8 +128,7 @@ fn main_loop(win_: *mut c_void) {
 
         match &(*state).program {
             Some(p) => {
-                draw(p, &(*state).buff, &u);
-                glDisable(GL_CULL_FACE);
+                glEnable(GL_CULL_FACE);
                 draw_indexed(p, &(*state).monkey_vb, &(*state).monkey_ib, &u);
             },
             None => ()
@@ -196,14 +194,8 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
 
         let monkey_vb = StaticVertexBuffer::new(m.verts());
         let monkey_ib = StaticIndexBuffer::new(m.tris());
-        let vertices : [Vec3f; 3] =
-        [   Vec3f::new(0.0,    0.5,    0.0),
-            Vec3f::new(-0.5,   -0.5,   0.0),
-            Vec3f::new(0.5,    -0.5,   0.0) ];
 
-        let buff = StaticVertexBuffer::new(&vertices);
-
-        let state = Box::new(State { program : program, buff : buff, monkey_vb: monkey_vb, monkey_ib: monkey_ib, angle: 0.0 });
+        let state = Box::new(State { program : program, monkey_vb: monkey_vb, monkey_ib: monkey_ib, angle: 0.0 });
         glfwSetWindowUserPointer(win, state.as_ref() as *const State as *mut ::core::ffi::c_void);
         run_main_loop(win);
 
