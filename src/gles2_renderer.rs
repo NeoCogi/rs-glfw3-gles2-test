@@ -34,7 +34,7 @@ use rs_math3d::*;
 
 pub struct GLProgram {
     prog_id     : GLuint,
-    attribs     : Vec<(VertexAttribute, GLuint)>,
+    attribs     : Vec<(VertexAttributeDesc, GLuint)>,
     uniforms    : Vec<(UniformDesc, GLuint)>,
 }
 
@@ -68,7 +68,7 @@ impl GLProgram {
         }
     }
 
-    pub fn load_program(vs: &str, fs: &str, attribs: &[VertexAttribute], uniforms: &[UniformDesc]) -> Option<Box<dyn Program>> {
+    pub fn load_program(vs: &str, fs: &str, attribs: &[VertexAttributeDesc], uniforms: &[UniformDesc]) -> Option<Box<dyn Program>> {
         unsafe {
             let program_object = glCreateProgram();
             if program_object == 0 {
@@ -145,7 +145,7 @@ impl Drop for GLProgram {
 }
 
 impl Program for GLProgram {
-    fn attributes(&self) -> &[VertexAttribute] { &[] }
+    fn attributes(&self) -> &[VertexAttributeDesc] { &[] }
     fn uniforms(&self) -> &[UniformDesc] { &[] }
 }
 

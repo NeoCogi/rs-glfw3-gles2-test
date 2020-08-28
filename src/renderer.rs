@@ -53,13 +53,13 @@ pub enum VertexFormat {
 
 
 #[derive(Clone)]
-pub struct VertexAttribute {
+pub struct VertexAttributeDesc {
     name        : String,
     format      : VertexFormat,
     offset      : usize,
 }
 
-impl VertexAttribute {
+impl VertexAttributeDesc {
     pub fn new(name: String, format: VertexFormat, offset: usize) -> Self { Self { name: name, format: format, offset: offset } }
     pub fn name(&self)      -> &String  { &self.name  }
     pub fn format(&self)    -> VertexFormat   { self.format.clone() }
@@ -111,7 +111,58 @@ pub trait UniformBlock {
     fn descriptors() -> Vec<UniformDataDesc>;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+/// PipelineDesc
+////////////////////////////////////////////////////////////////////////////////
+
+pub enum IndexType {
+    UInt16,
+    UInt32,
+}
+
+pub enum ImageType {
+    IT2D,
+    ITCube,
+    IT3D,
+    ITArray,
+}
+
+pub enum SamplerType {
+    Float,
+    SInt,
+    UInt,
+}
+
+pub enum PrimitiveType {
+    Points,
+    Lines,
+    LineStrip,
+    Triangles,
+    TriangleStrip,
+}
+
+pub enum Filter {
+    Nearest,
+    Linear,
+    NearestMipmapNearest,
+    NearestMipmapLinear,
+    LinearMipmapNearest,
+    LinearMipmapLinear,
+}
+
+pub enum Wrap {
+    Repeat,
+    ClampToEdge,
+    ClampToBorder,
+    MirroredRepeat,
+}
+
+pub enum CullMode {
+    CCW,
+    CW,
+}
+
 pub trait Program {
-    fn attributes(&self) -> &[VertexAttribute];
+    fn attributes(&self) -> &[VertexAttributeDesc];
     fn uniforms(&self) -> &[UniformDesc];
 }
