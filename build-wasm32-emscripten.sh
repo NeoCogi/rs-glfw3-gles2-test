@@ -1,0 +1,2 @@
+#!/bin/sh
+cargo rustc --target wasm32-unknown-emscripten -- -C link_args="-o index.html --no-heap-copy -s USE_WEBGL2=1 -s FULL_ES2=1 -s USE_GLFW=3 --preload-file suzane.obj -s ASSERTIONS=1 -s ALLOW_MEMORY_GROWTH=1"

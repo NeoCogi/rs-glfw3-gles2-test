@@ -211,8 +211,8 @@ impl StaticIndexBuffer {
     unsafe fn new_unsafe(index_type: IndexType, buff_data: *const u8, buff_size: usize) -> Self {
         let mut buff = 0;
         glGenBuffers(1, &mut buff);
-        glBindBuffer(GL_ARRAY_BUFFER, buff);
-        glBufferData(GL_ARRAY_BUFFER, buff_size as GLsizeiptr, buff_data as *const rs_ctypes::c_void, GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buff);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, buff_size as GLsizeiptr, buff_data as *const rs_ctypes::c_void, GL_STATIC_DRAW);
         Self {
             index_type : index_type,
             buff_id : buff,
