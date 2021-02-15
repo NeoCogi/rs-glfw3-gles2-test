@@ -122,7 +122,7 @@ fn main_loop(win_: *mut c_void) {
         glEnable(GL_DEPTH_TEST);
         let proj = rs_math3d::perspective(3.141516/4.0, width as f32 / height as f32, 1.0, 100.0);
         let view = rs_math3d::lookat(&Vec3f::new(0.0, 1.0, 5.0), &Vec3f::new(0.0, 0.0, 0.0), &Vec3f::new(0.0, 1.0, 0.0));
-        let model = Quatf::ofAxisAngle(&Vec3f::new(0.0, 1.0, 0.0), (*state).angle);
+        let model = Quatf::of_axis_angle(&Vec3f::new(0.0, 1.0, 0.0), (*state).angle);
         (*state).angle += 0.01;
         let u = Uniforms { pvm: proj * view * model.mat4() };
 
@@ -175,6 +175,7 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize  {
             core::ptr::null::<GLFWmonitor>() as *mut GLFWmonitor,
             core::ptr::null::<GLFWwindow>() as *mut GLFWwindow);
         glfwMakeContextCurrent(win);
+
 
         let attribs = [
             VertexAttributeDesc::new(String::from("aPosition"), VertexFormat::Float3, 0),

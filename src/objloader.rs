@@ -221,7 +221,7 @@ impl GPUMesh {
             let v1 = mesh.verts[t.verts[1] as usize];
             let v2 = mesh.verts[t.verts[2] as usize];
 
-            let n = rs_math3d::triNormal(&v0, &v1, &v2);
+            let n = rs_math3d::tri_normal(&v0, &v1, &v2);
 
             let uv0 = mesh.verts[t.uvs[0] as usize];
             let uv1 = mesh.verts[t.uvs[1] as usize];
@@ -243,7 +243,7 @@ impl GPUMesh {
             let v2 = mesh.verts[q.verts[2] as usize];
             let v3 = mesh.verts[q.verts[3] as usize];
 
-            let n = rs_math3d::quadNormal(&v0, &v1, &v2, &v3);
+            let n = rs_math3d::quad_normal(&v0, &v1, &v2, &v3);
 
             let uv0 = mesh.verts[q.uvs[0] as usize];
             let uv1 = mesh.verts[q.uvs[1] as usize];
